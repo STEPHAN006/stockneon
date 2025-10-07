@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     const total = qty * priceUnit
 
     // Créer l'entrée et mettre à jour le stock en une transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx : any) => {
       const entry = await tx.entry.create({
         data: {
           date: new Date(date),

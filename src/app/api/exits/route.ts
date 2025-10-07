@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer la sortie et mettre à jour le stock en une transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx : any) => {
       const exit = await tx.exit.create({
         data: {
           date: new Date(date),
