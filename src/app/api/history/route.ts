@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
       ...(to && { lte: new Date(to) })
     }
 
-    let entries = []
-    let exits = []
+    let entries : any[] = []
+    let exits : any []= []
     let totalEntries = 0
     let totalExits = 0
 
