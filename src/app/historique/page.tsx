@@ -12,15 +12,7 @@ import { History, Download, Filter, ArrowDownToLine, ArrowUpFromLine, FileSpread
 import { toast } from 'sonner'
 import { formatPrice, formatDateTime } from '@/lib/utils'
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
-  }
-}
 
 interface HistoryItem {
   id: number
@@ -147,68 +139,6 @@ export default function HistoriquePage() {
     toast.success(`Export Excel téléchargé ! ${history.length} opération(s) exportée(s).`)
   }
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF()
-    
-    // Titre
-    doc.setFontSize(20)
-    doc.text('Historique des Opérations', 14, 22)
-    
-    // Date de génération
-    doc.setFontSize(10)
-    doc.text(`Généré le ${formatDateTime(new Date())}`, 14, 30)
-    
-    // Données du tableau
-    const tableData = history.map(item => [
-      item.type === 'entry' ? 'Entrée' : 'Sortie',
-      formatDateTime(item.date),
-      item.piece.name,
-      item.qty.toString(),
-      item.total ? `${formatPrice(item.total)} AR` : '-',
-      item.supplier?.name || item.technician?.name || '-',
-      item.observation || '-',
-      item.reference || '-'
-    ])
-
-    // Tableau
-    doc.autoTable({
-      head: [['Type', 'Date', 'Pièce', 'Quantité', 'Total', 'Fournisseur/Technicien', 'Observation', 'Référence']],
-      body: tableData,
-      startY: 40,
-      styles: {
-        fontSize: 8,
-        cellPadding: 3
-      },
-      headStyles: {
-        fillColor: [230, 230, 250],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { cellWidth: 20 },
-        1: { cellWidth: 30 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 15 },
-        4: { cellWidth: 20 },
-        5: { cellWidth: 25 },
-        6: { cellWidth: 30 },
-        7: { cellWidth: 20 }
-      }
-    })
-
-    // Statistiques en bas
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10)
-    doc.text(`Total des opérations: ${history.length}`, 14, finalY)
-    
-    const entries = history.filter(item => item.type === 'entry').length
-    const exits = history.filter(item => item.type === 'exit').length
-    doc.text(`Entrées: ${entries} | Sorties: ${exits}`, 14, finalY + 10)
-
-    doc.save(`historique-${new Date().toISOString().split('T')[0]}.pdf`)
-    toast.success(`Export PDF téléchargé ! ${history.length} opération(s) exportée(s).`)
-  }
-
   const getTypeIcon = (type: string) => {
     return type === 'entry' ? (
       <ArrowDownToLine className="h-4 w-4 text-green-600" />
@@ -245,10 +175,6 @@ export default function HistoriquePage() {
             <Button onClick={handleExportExcel} disabled={history.length === 0} variant="outline">
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel
-            </Button>
-            <Button onClick={handleExportPDF} disabled={history.length === 0} variant="outline">
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
             </Button>
           </div>
         </div>

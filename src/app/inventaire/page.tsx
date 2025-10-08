@@ -13,15 +13,7 @@ import { Package, Search, Plus, Edit, Trash2, Eye, Download, FileSpreadsheet, Fi
 import { toast } from 'sonner'
 import { formatPrice, formatDateTime } from '@/lib/utils'
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
-  }
-}
 
 interface Piece {
   id: number
@@ -221,60 +213,6 @@ export default function InventairePage() {
     toast.success(`Export Excel téléchargé ! ${filteredPieces.length} pièce(s) exportée(s).`)
   }
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF()
-    
-    // Titre
-    doc.setFontSize(20)
-    doc.text('Inventaire des Pièces', 14, 22)
-    
-    // Date de génération
-    doc.setFontSize(10)
-    doc.text(`Généré le ${formatDateTime(new Date())}`, 14, 30)
-    
-    // Données du tableau
-    const tableData = filteredPieces.map(piece => [
-      piece.name,
-      piece.description || '-',
-      piece.location || '-',
-      piece.stock.toString(),
-      piece.minStock.toString()
-    ])
-
-    // Tableau
-    doc.autoTable({
-      head: [['Nom', 'Description', 'Emplacement', 'Stock', 'Stock Minimum']],
-      body: tableData,
-      startY: 40,
-      styles: {
-        fontSize: 10,
-        cellPadding: 4
-      },
-      headStyles: {
-        fillColor: [230, 230, 250],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { cellWidth: 40 },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 35 },
-        3: { cellWidth: 15 },
-        4: { cellWidth: 20 }
-      }
-    })
-
-    // Statistiques en bas
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10)
-    doc.text(`Total des pièces: ${filteredPieces.length}`, 14, finalY)
-    
-    const totalStock = filteredPieces.reduce((sum, piece) => sum + piece.stock, 0)
-    doc.text(`Stock total: ${totalStock} unités`, 14, finalY + 10)
-
-    doc.save(`inventaire-${new Date().toISOString().split('T')[0]}.pdf`)
-    toast.success(`Export PDF téléchargé ! ${filteredPieces.length} pièce(s) exportée(s).`)
-  }
 
   return (
     <Layout>
@@ -292,10 +230,6 @@ export default function InventairePage() {
             <Button onClick={handleExportExcel} disabled={filteredPieces.length === 0} variant="outline">
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel
-            </Button>
-            <Button onClick={handleExportPDF} disabled={filteredPieces.length === 0} variant="outline">
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
             </Button>
             <Button onClick={() => {
               setEditingPiece({})

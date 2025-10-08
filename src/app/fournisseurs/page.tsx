@@ -12,15 +12,7 @@ import { Truck, Plus, Edit, Trash2, Euro, Download, FileSpreadsheet, FileText } 
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
-  }
-}
 
 interface Supplier {
   id: number
@@ -155,57 +147,6 @@ export default function FournisseursPage() {
     toast.success(`Export Excel téléchargé ! ${suppliers.length} fournisseur(s) exporté(s).`)
   }
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF()
-    
-    // Titre
-    doc.setFontSize(20)
-    doc.text('Liste des Fournisseurs', 14, 22)
-    
-    // Date de génération
-    doc.setFontSize(10)
-    doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, 14, 30)
-    
-    // Données du tableau
-    const tableData = suppliers.map(supplier => [
-      supplier.name,
-      supplier.totalEntries.toString(),
-      `${formatPrice(supplier.totalRevenue)} AR`
-    ])
-
-    // Tableau
-    doc.autoTable({
-      head: [['Nom', 'Nombre d\'entrées', 'Chiffre d\'affaires']],
-      body: tableData,
-      startY: 40,
-      styles: {
-        fontSize: 10,
-        cellPadding: 4
-      },
-      headStyles: {
-        fillColor: [230, 230, 250],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 50 }
-      }
-    })
-
-    // Statistiques en bas
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10)
-    doc.text(`Total des fournisseurs: ${suppliers.length}`, 14, finalY)
-    
-    const totalRevenue = suppliers.reduce((sum, supplier) => sum + supplier.totalRevenue, 0)
-    doc.text(`Chiffre d'affaires total: ${formatPrice(totalRevenue)} AR`, 14, finalY + 10)
-
-    doc.save(`fournisseurs-${new Date().toISOString().split('T')[0]}.pdf`)
-    toast.success(`Export PDF téléchargé ! ${suppliers.length} fournisseur(s) exporté(s).`)
-  }
-
   return (
     <Layout>
       <div className="space-y-6">
@@ -222,10 +163,6 @@ export default function FournisseursPage() {
             <Button onClick={handleExportExcel} disabled={suppliers.length === 0} variant="outline">
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel
-            </Button>
-            <Button onClick={handleExportPDF} disabled={suppliers.length === 0} variant="outline">
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
             </Button>
             <Button onClick={() => {
               setEditingSupplier({})

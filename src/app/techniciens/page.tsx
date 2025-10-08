@@ -11,15 +11,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Users, Plus, Edit, Trash2, Download, FileSpreadsheet, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
-
-// Extend jsPDF type to include autoTable
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF
-  }
-}
 
 interface Technician {
   id: number
@@ -154,52 +145,6 @@ export default function TechniciensPage() {
     toast.success(`Export Excel téléchargé ! ${technicians.length} technicien(s) exporté(s).`)
   }
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF()
-    
-    // Titre
-    doc.setFontSize(20)
-    doc.text('Liste des Techniciens', 14, 22)
-    
-    // Date de génération
-    doc.setFontSize(10)
-    doc.text(`Généré le ${new Date().toLocaleString('fr-FR')}`, 14, 30)
-    
-    // Données du tableau
-    const tableData = technicians.map(technician => [
-      technician.name,
-      technician.role || '-'
-    ])
-
-    // Tableau
-    doc.autoTable({
-      head: [['Nom', 'Rôle']],
-      body: tableData,
-      startY: 40,
-      styles: {
-        fontSize: 10,
-        cellPadding: 4
-      },
-      headStyles: {
-        fillColor: [230, 230, 250],
-        textColor: [0, 0, 0],
-        fontStyle: 'bold'
-      },
-      columnStyles: {
-        0: { cellWidth: 80 },
-        1: { cellWidth: 60 }
-      }
-    })
-
-    // Statistiques en bas
-    const finalY = (doc as any).lastAutoTable.finalY + 10
-    doc.setFontSize(10)
-    doc.text(`Total des techniciens: ${technicians.length}`, 14, finalY)
-
-    doc.save(`techniciens-${new Date().toISOString().split('T')[0]}.pdf`)
-    toast.success(`Export PDF téléchargé ! ${technicians.length} technicien(s) exporté(s).`)
-  }
-
   return (
     <Layout>
       <div className="space-y-6">
@@ -216,10 +161,6 @@ export default function TechniciensPage() {
             <Button onClick={handleExportExcel} disabled={technicians.length === 0} variant="outline">
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Excel
-            </Button>
-            <Button onClick={handleExportPDF} disabled={technicians.length === 0} variant="outline">
-              <FileText className="mr-2 h-4 w-4" />
-              PDF
             </Button>
             <Button onClick={() => {
               setEditingTechnician({})
