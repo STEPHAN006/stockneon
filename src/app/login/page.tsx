@@ -106,12 +106,6 @@ export default function LoginPage() {
                 {isLoading ? 'Connexion...' : 'Se connecter'}
               </Button>
             </form>
-            
-            <div className="mt-4 text-sm text-gray-600">
-              <p className="font-medium">Compte de test :</p>
-              <p>Email: admin@test.com</p>
-              <p>Mot de passe: admin123</p>
-            </div>
           </CardContent>
         </Card>
       </div>
