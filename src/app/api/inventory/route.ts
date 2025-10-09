@@ -17,15 +17,60 @@ export async function GET(request: NextRequest) {
       ]
     } : {}
 
-    const [pieces, total] = await Promise.all([
+    const [piecesRaw, total] = await Promise.all([
       prisma.piece.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' }
+        orderBy: { name: 'asc' },
+        include: {
+          entries: {
+            select: {
+              qty: true,
+              priceUnit: true,
+              date: true
+            },
+            orderBy: { date: 'asc' }
+          },
+          exits: {
+            select: {
+              qty: true,
+              date: true
+            },
+            orderBy: { date: 'asc' }
+          }
+        }
       }),
       prisma.piece.count({ where })
     ])
+
+    // Calcul de la valeur exacte du stock pour chaque pièce
+    const pieces = piecesRaw.map(piece => {
+      // On va suivre les entrées et sorties chronologiquement pour calculer la valeur exacte
+      let remainingStock = piece.stock
+      let stockValue = 0
+
+      if (remainingStock > 0) {
+        // On part des entrées les plus récentes et on remonte
+        const entries = [...piece.entries].reverse()
+        
+        for (const entry of entries) {
+          const qtyFromThisEntry = Math.min(remainingStock, entry.qty)
+          if (qtyFromThisEntry > 0) {
+            stockValue += qtyFromThisEntry * entry.priceUnit
+            remainingStock -= qtyFromThisEntry
+          }
+          if (remainingStock <= 0) break
+        }
+      }
+
+      return {
+        ...piece,
+        stockValue,
+        entries: undefined, // On ne renvoie pas les entrées/sorties dans la liste
+        exits: undefined
+      }
+    })
 
     return NextResponse.json({
       pieces,

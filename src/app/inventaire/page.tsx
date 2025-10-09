@@ -15,6 +15,28 @@ import { formatPrice, formatDateTime } from '@/lib/utils'
 import * as XLSX from 'xlsx'
 
 
+interface Entry {
+  id: number
+  date: string
+  qty: number
+  priceUnit: number
+  total: number
+  supplier?: {
+    name: string
+  }
+  reference?: string
+}
+
+interface Exit {
+  id: number
+  date: string
+  qty: number
+  technician?: {
+    name: string
+  }
+  observation?: string
+}
+
 interface Piece {
   id: number
   name: string
@@ -22,8 +44,9 @@ interface Piece {
   location: string | null
   stock: number
   minStock: number
-  entries?: any[]
-  exits?: any[]
+  stockValue: number // Valeur totale du stock (calculée côté serveur)
+  entries?: Entry[]
+  exits?: Exit[]
 }
 
 export default function InventairePage() {
@@ -213,6 +236,43 @@ export default function InventairePage() {
     toast.success(`Export Excel téléchargé ! ${filteredPieces.length} pièce(s) exportée(s).`)
   }
 
+  // Exporter l'historique (entrées + sorties) d'une pièce en Excel
+  const exportPieceHistory = (piece: Piece) => {
+    try {
+      const headers = ['Type', 'Date', 'Quantité', 'Source', 'Total', 'Observation']
+
+      const entryRows = (piece.entries || []).map((e: any) => [
+        'Entrée',
+        formatDateTime(e.date),
+        e.qty,
+        e.supplier?.name || e.reference || '',
+        formatPrice(e.total || 0),
+        ''
+      ])
+
+      const exitRows = (piece.exits || []).map((ex: any) => [
+        'Sortie',
+        formatDateTime(ex.date),
+        ex.qty,
+        ex.technician?.name || '',
+        '',
+        ex.observation || ''
+      ])
+
+      const worksheetData = [headers, ...entryRows, ...exitRows]
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Historique')
+
+      const safeName = (piece.name || 'piece').replace(/[^a-z0-9-_]/gi, '_')
+      XLSX.writeFile(workbook, `historique-${safeName}-${new Date().toISOString().split('T')[0]}.xlsx`)
+      toast.success('Historique exporté !')
+    } catch (error) {
+      console.error('Erreur export historique:', error)
+      toast.error('Erreur lors de l\'export de l\'historique')
+    }
+  }
+
 
   return (
     <Layout>
@@ -337,8 +397,18 @@ export default function InventairePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Pièces en Stock ({filteredPieces.length})</CardTitle>
-            <CardDescription>Liste de toutes les pièces disponibles</CardDescription>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle>Pièces en Stock ({filteredPieces.length})</CardTitle>
+                <CardDescription>Liste de toutes les pièces disponibles</CardDescription>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-500">Valeur totale de l'inventaire</p>
+                <p className="text-xl font-bold text-blue-600">
+                  {formatPrice(filteredPieces.reduce((sum, p) => sum + p.stockValue, 0))}
+                </p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -352,8 +422,9 @@ export default function InventairePage() {
                     <TableHead>Nom</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Emplacement</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead>Stock Min</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-right">Stock Min</TableHead>
+                    <TableHead className="text-right">Valeur Totale</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -363,15 +434,18 @@ export default function InventairePage() {
                       <TableCell className="font-medium">{piece.name}</TableCell>
                       <TableCell>{piece.description || '-'}</TableCell>
                       <TableCell>{piece.location || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Badge variant={piece.stock <= piece.minStock ? 'destructive' : piece.stock <= 5 ? 'secondary' : 'default'}>
                           {piece.stock}
                         </Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Badge variant="outline">
                           {piece.minStock}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatPrice(piece.stockValue)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
@@ -488,24 +562,40 @@ export default function InventairePage() {
         </Dialog>
 
         {/* Dialog de visualisation */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen} >
+    <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Détails de la pièce</DialogTitle>
-              <DialogDescription>
-                Informations complètes et historique de la pièce
-              </DialogDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle>Détails de la pièce</DialogTitle>
+                  <DialogDescription>
+                    Informations complètes et historique de la pièce
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => selectedPiece && exportPieceHistory(selectedPiece)}
+                    disabled={!selectedPiece}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Exporter l'historique
+                  </Button>
+                </div>
+              </div>
             </DialogHeader>
             {selectedPiece && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-6">
+                {/* Informations de la pièce (gauche - 1/3) */}
+                <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-gray-500">Nom</label>
-                    <p className="text-lg">{selectedPiece.name}</p>
+                    <p className="text-lg font-bold">{selectedPiece.name}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Stock actuel</label>
-                    <p className="text-lg font-bold">{selectedPiece.stock}</p>
+                    <p className="text-lg font-bold text-blue-600">{selectedPiece.stock}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Stock minimum</label>
@@ -521,45 +611,48 @@ export default function InventairePage() {
                   </div>
                 </div>
 
-                {selectedPiece.entries && selectedPiece.entries.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-3">Dernières entrées</h3>
-                    <div className="space-y-2">
-                      {selectedPiece.entries.slice(0, 5).map((entry: any) => (
-                        <div key={entry.id} className="flex justify-between items-center p-2 bg-green-50 rounded">
-                          <div>
-                            <p className="font-medium">+{entry.qty} unités</p>
-                            <p className="text-sm text-gray-600">
-                              {entry.supplier.name} • {formatDateTime(entry.date)}
-                            </p>
+                {/* Historique (droite - 2/3) */}
+                <div className="md:col-span-2 space-y-6">
+                  {selectedPiece.entries && selectedPiece.entries.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Dernières entrées</h3>
+                      <div className="space-y-2">
+                        {selectedPiece.entries.slice(-2).map((entry: any) => (
+                          <div key={`last-${entry.id}`} className="flex justify-between items-center p-2 bg-green-100 rounded">
+                            <div>
+                              <p className="font-medium">+{entry.qty} unités</p>
+                              <p className="text-sm text-gray-600">
+                                {entry.supplier?.name} • {formatDateTime(entry.date)}
+                              </p>
+                            </div>
+                            <p className="font-medium">{formatPrice(entry.total)} AR</p>
                           </div>
-                          <p className="font-medium">{formatPrice(entry.total)} AR</p>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {selectedPiece.exits && selectedPiece.exits.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-medium mb-3">Dernières sorties</h3>
-                    <div className="space-y-2">
-                      {selectedPiece.exits.slice(0, 5).map((exit: any) => (
-                        <div key={exit.id} className="flex justify-between items-center p-2 bg-red-50 rounded">
-                          <div>
-                            <p className="font-medium">-{exit.qty} unités</p>
-                            <p className="text-sm text-gray-600">
-                              {exit.technician.name} • {formatDateTime(exit.date)}
-                            </p>
+                  {selectedPiece.exits && selectedPiece.exits.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-medium mb-3">Dernières sorties</h3>
+                      <div className="space-y-2">
+                        {selectedPiece.exits.slice(-2).map((exit: any) => (
+                          <div key={`last-ex-${exit.id}`} className="flex justify-between items-center p-2 bg-red-100 rounded">
+                            <div>
+                              <p className="font-medium">-{exit.qty} unités</p>
+                              <p className="text-sm text-gray-600">
+                                {exit.technician?.name} • {formatDateTime(exit.date)}
+                              </p>
+                            </div>
+                            {exit.observation && (
+                              <p className="text-sm text-gray-600">{exit.observation}</p>
+                            )}
                           </div>
-                          {exit.observation && (
-                            <p className="text-sm text-gray-600">{exit.observation}</p>
-                          )}
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </DialogContent>
