@@ -73,8 +73,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    await prisma.piece.delete({
-      where: { id: parseInt(id) }
+    
+    // Au lieu de supprimer, on met à jour avec deletedAt
+    await prisma.piece.update({
+      where: { id: parseInt(id) },
+      data: {
+        deletedAt: new Date(),
+        stock: 0 // On met le stock à 0 puisque la pièce est "supprimée"
+      }
     })
 
     return NextResponse.json({ message: 'Pièce supprimée avec succès' })

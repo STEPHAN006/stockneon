@@ -26,12 +26,13 @@ enum Role {
 }
 
 model Piece {
-  id          Int     @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
   description String?
   location    String?
-  stock       Int     @default(0)
-  minStock    Int     @default(0)
+  stock       Int       @default(0)
+  minStock    Int       @default(0)
+  deletedAt   DateTime?
   entries     Entry[]
   exits       Exit[]
 }
