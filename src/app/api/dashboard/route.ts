@@ -11,11 +11,23 @@ export async function GET() {
       recentExits,
       lowStockPieces
     ] = await Promise.all([
-      prisma.piece.count(),
+      prisma.piece.count({
+        where: {
+          deletedAt: null
+        }
+      }),
       prisma.piece.aggregate({
+        where: {
+          deletedAt: null
+        },
         _sum: { stock: true }
       }),
       prisma.entry.aggregate({
+        where: {
+          piece: {
+            deletedAt: null
+          }
+        },
         _sum: { total: true }
       }),
       prisma.entry.findMany({
@@ -23,6 +35,11 @@ export async function GET() {
         include: {
           piece: true,
           supplier: true
+        },
+        where: {
+          piece: {
+            deletedAt: null
+          }
         },
         orderBy: { date: 'desc' }
       }),
@@ -32,13 +49,23 @@ export async function GET() {
           piece: true,
           technician: true
         },
+        where: {
+          piece: {
+            deletedAt: null
+          }
+        },
         orderBy: { date: 'desc' }
       }),
       prisma.piece.findMany({
         where: {
-          stock: {
-            lte: 5 // Stock faible si <= 5
-          }
+          AND: [
+            { deletedAt: null },
+            {
+              stock: {
+                lte: 5 // Stock faible si <= 5
+              }
+            }
+          ]
         },
         orderBy: { stock: 'asc' }
       })

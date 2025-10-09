@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from')
     const to = searchParams.get('to')
     const type = searchParams.get('type') // 'entry' | 'exit' | 'all'
+    const search = searchParams.get('search')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
     const skip = (page - 1) * limit
@@ -15,6 +16,10 @@ export async function GET(request: NextRequest) {
       ...(from && { gte: new Date(from) }),
       ...(to && { lte: new Date(to) })
     }
+
+    const searchTerm = search?.trim()
+    const isNumeric = !isNaN(Number(searchTerm))
+    const numberValue = isNumeric ? Number(searchTerm) : null
 
     let entries : any[] = []
     let exits : any []= []
@@ -25,7 +30,21 @@ export async function GET(request: NextRequest) {
       const [entryData, entryCount] = await Promise.all([
         prisma.entry.findMany({
           where: {
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+            piece: {
+              deletedAt: null
+            },
+            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(searchTerm && {
+              OR: [
+                { piece: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { supplier: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { reference: { contains: searchTerm, mode: 'insensitive' as const } },
+                ...(numberValue ? [
+                  { qty: numberValue },
+                  { total: numberValue }
+                ] : [])
+              ]
+            })
           },
           include: {
             piece: true,
@@ -37,7 +56,21 @@ export async function GET(request: NextRequest) {
         }),
         prisma.entry.count({
           where: {
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+            piece: {
+              deletedAt: null
+            },
+            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(searchTerm && {
+              OR: [
+                { piece: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { supplier: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { reference: { contains: searchTerm, mode: 'insensitive' as const } },
+                ...(numberValue ? [
+                  { qty: numberValue },
+                  { total: numberValue }
+                ] : [])
+              ]
+            })
           }
         })
       ])
@@ -49,11 +82,27 @@ export async function GET(request: NextRequest) {
       const [exitData, exitCount] = await Promise.all([
         prisma.exit.findMany({
           where: {
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+            piece: {
+              deletedAt: null
+            },
+            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(searchTerm && {
+              OR: [
+                { piece: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { technician: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { department: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { forUser: { contains: searchTerm, mode: 'insensitive' as const } },
+                { observation: { contains: searchTerm, mode: 'insensitive' as const } },
+                ...(numberValue ? [
+                  { qty: numberValue }
+                ] : [])
+              ]
+            })
           },
           include: {
             piece: true,
-            technician: true
+            technician: true,
+            department: true
           },
           orderBy: { date: 'desc' },
           skip: type === 'exit' ? skip : 0,
@@ -61,7 +110,30 @@ export async function GET(request: NextRequest) {
         }),
         prisma.exit.count({
           where: {
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+            piece: {
+              deletedAt: null
+            },
+            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(searchTerm && {
+              OR: [
+                { piece: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { technician: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { department: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { forUser: { contains: searchTerm, mode: 'insensitive' as const } },
+                { observation: { contains: searchTerm, mode: 'insensitive' as const } },
+                ...(numberValue ? [
+                  { qty: numberValue }
+                ] : [])
+              ]
+            }),
+            ...(searchTerm && {
+              OR: [
+                { piece: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { technician: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { department: { name: { contains: searchTerm, mode: 'insensitive' as const } } },
+                { forUser: { contains: searchTerm, mode: 'insensitive' as const } }
+              ]
+            })
           }
         })
       ])

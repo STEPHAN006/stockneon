@@ -63,13 +63,23 @@ model Entry {
   supplier    Supplier @relation(fields: [supplierId], references: [id])
 }
 
+model Department {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  deletedAt DateTime?
+  exits     Exit[]
+}
+
 model Exit {
-  id           Int        @id @default(autoincrement())
+  id           Int         @id @default(autoincrement())
   date         DateTime
   pieceId      Int
   technicianId Int
+  departmentId Int
+  forUser      String     // Personne qui reçoit le matériel
   qty          Int
   observation  String?
-  piece        Piece      @relation(fields: [pieceId], references: [id])
-  technician   Technician @relation(fields: [technicianId], references: [id])
+  piece        Piece       @relation(fields: [pieceId], references: [id])
+  technician   Technician  @relation(fields: [technicianId], references: [id])
+  department   Department  @relation(fields: [departmentId], references: [id])
 }

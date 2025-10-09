@@ -7,8 +7,11 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const piece = await prisma.piece.findUnique({
-      where: { id: parseInt(id) },
+    const piece = await prisma.piece.findFirst({
+      where: { 
+        id: parseInt(id),
+        deletedAt: null
+      },
       include: {
         entries: {
           include: { supplier: true },

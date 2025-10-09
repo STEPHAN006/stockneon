@@ -25,26 +25,48 @@ interface Technician {
   role: string | null
 }
 
+interface Department {
+  id: number
+  name: string
+}
+
 export default function SortiePage() {
   const [pieces, setPieces] = useState<Piece[]>([])
   const [technicians, setTechnicians] = useState<Technician[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     date: new Date().toISOString().slice(0, 16), // Format datetime-local
     pieceId: '',
     technicianId: '',
+    departmentId: '',
+    forUser: '',
     qty: '',
     observation: ''
   })
   const [isAddingPiece, setIsAddingPiece] = useState(false)
   const [isAddingTechnician, setIsAddingTechnician] = useState(false)
+  const [isAddingDepartment, setIsAddingDepartment] = useState(false)
   const [newPiece, setNewPiece] = useState({ name: '', description: '', location: '' })
   const [newTechnician, setNewTechnician] = useState({ name: '', role: '' })
+  const [newDepartment, setNewDepartment] = useState({ name: '' })
 
   useEffect(() => {
     fetchPieces()
     fetchTechnicians()
+    fetchDepartments()
   }, [])
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('/api/departments')
+      const data = await response.json()
+      setDepartments(data || [])
+    } catch (error) {
+      console.error('Erreur lors du chargement des départements:', error)
+      toast.error('Erreur lors du chargement des départements')
+    }
+  }
 
   const fetchPieces = async () => {
     try {
@@ -90,6 +112,8 @@ export default function SortiePage() {
           date: new Date().toISOString().slice(0, 16),
           pieceId: '',
           technicianId: '',
+          departmentId: '',
+          forUser: '',
           qty: '',
           observation: ''
         })
@@ -146,6 +170,31 @@ export default function SortiePage() {
         setNewTechnician({ name: '', role: '' })
         setIsAddingTechnician(false)
         toast.success(`Technicien "${technician.name}" ajouté avec succès !`)
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Erreur lors de l\'ajout')
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout:', error)
+      toast.error('Erreur lors de l\'ajout')
+    }
+  }
+
+  const handleAddDepartment = async () => {
+    try {
+      const response = await fetch('/api/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDepartment)
+      })
+
+      if (response.ok) {
+        const department = await response.json()
+        setDepartments([...departments, department])
+        setFormData({ ...formData, departmentId: department.id.toString() })
+        setNewDepartment({ name: '' })
+        setIsAddingDepartment(false)
+        toast.success(`Département "${department.name}" ajouté avec succès !`)
       } else {
         const error = await response.json()
         toast.error(error.error || 'Erreur lors de l\'ajout')
@@ -252,6 +301,47 @@ export default function SortiePage() {
                 </div>
 
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="department">Département *</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAddingDepartment(true)}
+                    >
+                      + Ajouter
+                    </Button>
+                  </div>
+                  <Select
+                    value={formData.departmentId}
+                    onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner un département" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((department) => (
+                        <SelectItem key={department.id} value={department.id.toString()}>
+                          {department.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="forUser">Pour qui ? *</Label>
+                  <Input
+                    id="forUser"
+                    value={formData.forUser}
+                    onChange={(e) => setFormData({ ...formData, forUser: e.target.value })}
+                    placeholder="Nom de la personne recevant le matériel"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="qty">Quantité *</Label>
                   <Input
                     id="qty"
@@ -319,6 +409,8 @@ export default function SortiePage() {
                     date: new Date().toISOString().slice(0, 16),
                     pieceId: '',
                     technicianId: '',
+                    departmentId: '',
+                    forUser: '',
                     qty: '',
                     observation: ''
                   })}
@@ -413,6 +505,36 @@ export default function SortiePage() {
                   Annuler
                 </Button>
                 <Button onClick={handleAddTechnician} disabled={!newTechnician.name}>
+                  Ajouter
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog pour ajouter un département */}
+        <Dialog open={isAddingDepartment} onOpenChange={setIsAddingDepartment}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nouveau Département</DialogTitle>
+              <DialogDescription>
+                Ajoutez un nouveau département
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>Nom *</Label>
+                <Input
+                  value={newDepartment.name}
+                  onChange={(e) => setNewDepartment({ ...newDepartment, name: e.target.value })}
+                  placeholder="Nom du département"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddingDepartment(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleAddDepartment} disabled={!newDepartment.name}>
                   Ajouter
                 </Button>
               </div>

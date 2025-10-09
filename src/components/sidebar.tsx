@@ -23,6 +23,7 @@ const navigation = [
   { name: 'Sortie', href: '/sortie', icon: ArrowUpFromLine },
   { name: 'Fournisseurs', href: '/fournisseurs', icon: Truck },
   { name: 'Techniciens', href: '/techniciens', icon: Users },
+  { name: 'Départements', href: '/departements', icon: Users },
   { name: 'Historique', href: '/historique', icon: History },
 ]
 

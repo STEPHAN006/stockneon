@@ -4,8 +4,12 @@ import { toast } from 'sonner'
 
 export async function checkLowStockAlerts() {
   try {
-    // Récupérer toutes les pièces et filtrer côté application
-    const allPieces = await prisma.piece.findMany()
+    // Récupérer toutes les pièces non supprimées et filtrer côté application
+    const allPieces = await prisma.piece.findMany({
+      where: {
+        deletedAt: null
+      }
+    })
     const lowStockPieces = allPieces.filter(piece => 
       piece.minStock > 0 && piece.stock <= piece.minStock
     )
@@ -39,8 +43,11 @@ export async function checkLowStockAlerts() {
 
 export async function getLowStockPieces() {
   try {
-    // Récupérer toutes les pièces et filtrer côté application
+    // Récupérer toutes les pièces non supprimées et filtrer côté application
     const allPieces = await prisma.piece.findMany({
+      where: {
+        deletedAt: null
+      },
       orderBy: {
         stock: 'asc'
       }

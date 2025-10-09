@@ -41,9 +41,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { date, pieceId, technicianId, qty, observation } = await request.json()
+    const { date, pieceId, technicianId, departmentId, forUser, qty, observation } = await request.json()
 
-    if (!pieceId || !technicianId || !qty) {
+    if (!pieceId || !technicianId || !departmentId || !forUser || !qty) {
       return NextResponse.json(
         { error: 'Tous les champs sont requis' },
         { status: 400 }
@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
           date: new Date(date),
           pieceId: parseInt(pieceId),
           technicianId: parseInt(technicianId),
+          departmentId: parseInt(departmentId),
+          forUser,
           qty: parseInt(qty),
           observation
         }

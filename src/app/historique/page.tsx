@@ -8,11 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { History, Download, Filter, ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, FileText } from 'lucide-react'
+import { History, Download, Filter, ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatPrice, formatDateTime } from '@/lib/utils'
 import * as XLSX from 'xlsx'
-
 
 interface HistoryItem {
   id: number
@@ -29,6 +28,10 @@ interface HistoryItem {
   technician?: {
     name: string
   }
+  department?: {
+    name: string
+  }
+  forUser?: string
   observation?: string
   reference?: string
 }
@@ -36,17 +39,50 @@ interface HistoryItem {
 export default function HistoriquePage() {
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([])
+  const [technicians, setTechnicians] = useState<Array<{ id: number; name: string }>>([])
+  const [suppliers, setSuppliers] = useState<Array<{ id: number; name: string }>>([])
   const [filters, setFilters] = useState({
     from: '',
     to: '',
-    type: 'all'
+    type: 'all',
+    technicianId: 'all',
+    departmentId: 'all',
+    supplierId: 'all',
+    forUser: '',
+    search: ''
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
+    fetchFilters()
+  }, [])
+
+  useEffect(() => {
     fetchHistory()
   }, [filters, currentPage])
+
+  const fetchFilters = async () => {
+    try {
+      const [techResponse, deptResponse, suppResponse] = await Promise.all([
+        fetch('/api/technicians'),
+        fetch('/api/departments'),
+        fetch('/api/suppliers')
+      ])
+      const [techData, deptData, suppData] = await Promise.all([
+        techResponse.json(),
+        deptResponse.json(),
+        suppResponse.json()
+      ])
+      setTechnicians(techData || [])
+      setDepartments(deptData || [])
+      setSuppliers(suppData || [])
+    } catch (error) {
+      console.error('Erreur lors du chargement des filtres:', error)
+      toast.error('Erreur lors du chargement des filtres')
+    }
+  }
 
   const fetchHistory = async () => {
     try {
@@ -55,10 +91,14 @@ export default function HistoriquePage() {
         page: currentPage.toString(),
         limit: '20'
       })
-      
       if (filters.from) params.append('from', filters.from)
       if (filters.to) params.append('to', filters.to)
       if (filters.type !== 'all') params.append('type', filters.type)
+      if (filters.technicianId !== 'all') params.append('technicianId', filters.technicianId)
+      if (filters.departmentId !== 'all') params.append('departmentId', filters.departmentId)
+      if (filters.supplierId !== 'all') params.append('supplierId', filters.supplierId)
+      if (filters.forUser) params.append('forUser', filters.forUser)
+      if (filters.search) params.append('search', filters.search)
 
       const response = await fetch(`/api/history?${params}`)
       const data = await response.json()
@@ -79,7 +119,7 @@ export default function HistoriquePage() {
 
   const handleExportCSV = () => {
     const csvContent = [
-      ['Type', 'Date', 'Pièce', 'Quantité', 'Total', 'Fournisseur/Technicien', 'Observation', 'Référence'],
+      ['Type', 'Date', 'Pièce', 'Quantité', 'Total', 'Fournisseur/Technicien', 'Département', 'Pour qui', 'Observation', 'Référence'],
       ...history.map(item => [
         item.type === 'entry' ? 'Entrée' : 'Sortie',
         formatDateTime(item.date),
@@ -87,6 +127,8 @@ export default function HistoriquePage() {
         item.qty.toString(),
         item.total ? formatPrice(item.total) : '',
         item.supplier?.name || item.technician?.name || '',
+        item.type === 'exit' ? item.department?.name || '' : '',
+        item.type === 'exit' ? item.forUser || '' : '',
         item.observation || '',
         item.reference || ''
       ])
@@ -94,20 +136,17 @@ export default function HistoriquePage() {
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
+    link.href = URL.createObjectURL(blob)
     link.setAttribute('download', `historique-${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
     toast.success(`Export CSV téléchargé ! ${history.length} opération(s) exportée(s).`)
   }
 
   const handleExportExcel = () => {
     const worksheetData = [
-      ['Type', 'Date', 'Pièce', 'Quantité', 'Total', 'Fournisseur/Technicien', 'Observation', 'Référence'],
+      ['Type', 'Date', 'Pièce', 'Quantité', 'Total', 'Fournisseur/Technicien', 'Département', 'Pour qui', 'Observation', 'Référence'],
       ...history.map(item => [
         item.type === 'entry' ? 'Entrée' : 'Sortie',
         formatDateTime(item.date),
@@ -115,6 +154,8 @@ export default function HistoriquePage() {
         item.qty,
         item.total || 0,
         item.supplier?.name || item.technician?.name || '',
+        item.type === 'exit' ? item.department?.name || '' : '',
+        item.type === 'exit' ? item.forUser || '' : '',
         item.observation || '',
         item.reference || ''
       ])
@@ -124,14 +165,14 @@ export default function HistoriquePage() {
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Historique')
 
-    // Styling pour l'en-tête
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1')
     for (let col = range.s.c; col <= range.e.c; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
-      if (!worksheet[cellAddress]) continue
-      worksheet[cellAddress].s = {
-        font: { bold: true },
-        fill: { fgColor: { rgb: 'E6E6FA' } }
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: 'E6E6FA' } }
+        }
       }
     }
 
@@ -139,81 +180,64 @@ export default function HistoriquePage() {
     toast.success(`Export Excel téléchargé ! ${history.length} opération(s) exportée(s).`)
   }
 
-  const getTypeIcon = (type: string) => {
-    return type === 'entry' ? (
-      <ArrowDownToLine className="h-4 w-4 text-green-600" />
-    ) : (
-      <ArrowUpFromLine className="h-4 w-4 text-red-600" />
-    )
-  }
+  const getTypeIcon = (type: string) => type === 'entry' 
+    ? <ArrowDownToLine className="h-4 w-4 text-green-600" /> 
+    : <ArrowUpFromLine className="h-4 w-4 text-red-600" />
 
-  const getTypeBadge = (type: string) => {
-    return type === 'entry' ? (
-      <Badge variant="default" className="bg-green-100 text-green-800">
-        Entrée
-      </Badge>
-    ) : (
-      <Badge variant="destructive">
-        Sortie
-      </Badge>
-    )
-  }
+  const getTypeBadge = (type: string) => type === 'entry'
+    ? <Badge variant="default" className="bg-green-100 text-green-800">Entrée</Badge>
+    : <Badge variant="destructive">Sortie</Badge>
 
   return (
     <Layout>
       <div className="space-y-6">
+        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Historique</h1>
             <p className="text-gray-600">Historique des entrées et sorties de stock</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleExportCSV} disabled={history.length === 0} variant="outline">
-              <Download className="mr-2 h-4 w-4" />
-              CSV
+            <Button onClick={handleExportCSV} disabled={!history.length} variant="outline">
+              <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
-            <Button onClick={handleExportExcel} disabled={history.length === 0} variant="outline">
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel
+            <Button onClick={handleExportExcel} disabled={!history.length} variant="outline">
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
             </Button>
+          </div>
+        </div>
+
+        {/* Filtres */}
+        {/* Barre de recherche globale */}
+        <div className="flex gap-4 mb-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Rechercher dans tout l'historique (pièce, technicien, département, destinataire, etc.)"
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+            />
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Filter className="mr-2 h-5 w-5" />
-              Filtres
-            </CardTitle>
-            <CardDescription>Filtrez l'historique par date et type d'opération</CardDescription>
+            <CardTitle className="flex items-center"><Filter className="mr-2 h-5 w-5"/> Filtres avancés</CardTitle>
+            <CardDescription>Filtrez l'historique par date, type, technicien, département ou destinataire</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-sm font-medium">Date de début</label>
-                <Input
-                  type="date"
-                  value={filters.from}
-                  onChange={(e) => handleFilterChange('from', e.target.value)}
-                />
+                <Input type="date" value={filters.from} onChange={(e)=>handleFilterChange('from', e.target.value)} />
               </div>
               <div>
                 <label className="text-sm font-medium">Date de fin</label>
-                <Input
-                  type="date"
-                  value={filters.to}
-                  onChange={(e) => handleFilterChange('to', e.target.value)}
-                />
+                <Input type="date" value={filters.to} onChange={(e)=>handleFilterChange('to', e.target.value)} />
               </div>
               <div>
                 <label className="text-sm font-medium">Type</label>
-                <Select
-                  value={filters.type}
-                  onValueChange={(value) => handleFilterChange('type', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={filters.type} onValueChange={(v)=>handleFilterChange('type',v)}>
+                  <SelectTrigger><SelectValue placeholder="Tous types"/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tous</SelectItem>
                     <SelectItem value="entry">Entrées</SelectItem>
@@ -221,31 +245,64 @@ export default function HistoriquePage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="text-sm font-medium">Technicien</label>
+                <Select value={filters.technicianId} onValueChange={(v)=>handleFilterChange('technicianId',v)}>
+                  <SelectTrigger><SelectValue placeholder="Tous les techniciens"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    {technicians.map(tech=>(
+                      <SelectItem key={tech.id} value={tech.id.toString()}>{tech.name || `Tech-${tech.id}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Département</label>
+                <Select value={filters.departmentId} onValueChange={(v)=>handleFilterChange('departmentId',v)}>
+                  <SelectTrigger><SelectValue placeholder="Tous les départements"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    {departments.map(dept=>(
+                      <SelectItem key={dept.id} value={dept.id.toString()}>{dept.name || `Dept-${dept.id}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Fournisseur</label>
+                <Select value={filters.supplierId} onValueChange={(v)=>handleFilterChange('supplierId',v)}>
+                  <SelectTrigger><SelectValue placeholder="Tous les fournisseurs"/></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous</SelectItem>
+                    {suppliers.map(sup=>(
+                      <SelectItem key={sup.id} value={sup.id.toString()}>{sup.name || `Sup-${sup.id}`}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Pour qui ?</label>
+                <Input value={filters.forUser} onChange={(e)=>handleFilterChange('forUser', e.target.value)} placeholder="Rechercher par destinataire" />
+              </div>
               <div className="flex items-end">
-                <Button 
-                  onClick={() => setFilters({ from: '', to: '', type: 'all' })}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Réinitialiser
-                </Button>
+                <Button variant="outline" className="w-full" onClick={()=>{
+                  setFilters({ from:'', to:'', type:'all', technicianId:'all', departmentId:'all', supplierId:'all', forUser:'', search:'' })
+                }}>Réinitialiser</Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Historique Table */}
         <Card>
           <CardHeader>
             <CardTitle>Historique des Opérations</CardTitle>
-            <CardDescription>
-              {history.length} opération(s) trouvée(s)
-            </CardDescription>
+            <CardDescription>{history.length} opération(s) trouvée(s)</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="text-lg">Chargement...</div>
-              </div>
+              <div className="flex items-center justify-center h-32 text-lg">Chargement...</div>
             ) : history.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-32 text-gray-500">
                 <History className="h-8 w-8 mb-2" />
@@ -262,72 +319,33 @@ export default function HistoriquePage() {
                       <TableHead>Quantité</TableHead>
                       <TableHead>Total</TableHead>
                       <TableHead>Fournisseur/Technicien</TableHead>
+                      <TableHead>Département</TableHead>
+                      <TableHead>Pour qui</TableHead>
                       <TableHead>Détails</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {history.map((item) => (
+                    {history.map(item=>(
                       <TableRow key={`${item.type}-${item.id}`}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getTypeIcon(item.type)}
-                            {getTypeBadge(item.type)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {formatDateTime(item.date)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {item.piece.name}
-                        </TableCell>
-                        <TableCell>
-                          <span className={item.type === 'entry' ? 'text-green-600' : 'text-red-600'}>
-                            {item.type === 'entry' ? '+' : '-'}{item.qty}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {item.total ? `${formatPrice(item.total)} AR` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {item.supplier?.name || item.technician?.name || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm text-gray-600">
-                            {item.reference && (
-                              <div>Réf: {item.reference}</div>
-                            )}
-                            {item.observation && (
-                              <div>{item.observation}</div>
-                            )}
-                          </div>
-                        </TableCell>
+                        <TableCell className="flex items-center gap-2">{getTypeIcon(item.type)}{getTypeBadge(item.type)}</TableCell>
+                        <TableCell>{formatDateTime(item.date)}</TableCell>
+                        <TableCell className="font-medium">{item.piece.name}</TableCell>
+                        <TableCell><span className={item.type==='entry'?'text-green-600':'text-red-600'}>{item.type==='entry'?'+':'-'}{item.qty}</span></TableCell>
+                        <TableCell>{item.total ? `${formatPrice(item.total)} AR` : '-'}</TableCell>
+                        <TableCell>{item.supplier?.name || item.technician?.name || '-'}</TableCell>
+                        <TableCell>{item.type==='exit'?item.department?.name || '-' : '-'}</TableCell>
+                        <TableCell>{item.type==='exit'?item.forUser || '-' : '-'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">{item.reference && <div>Réf: {item.reference}</div>}{item.observation && <div>{item.observation}</div>}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
 
-                {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="flex justify-center items-center gap-2 mt-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                    >
-                      Précédent
-                    </Button>
-                    <span className="text-sm text-gray-600">
-                      Page {currentPage} sur {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                    >
-                      Suivant
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={()=>setCurrentPage(p=>Math.max(1,p-1))} disabled={currentPage===1}>Précédent</Button>
+                    <span className="text-sm text-gray-600">Page {currentPage} sur {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={()=>setCurrentPage(p=>Math.min(totalPages,p+1))} disabled={currentPage===totalPages}>Suivant</Button>
                   </div>
                 )}
               </>
